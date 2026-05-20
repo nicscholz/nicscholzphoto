@@ -1,0 +1,565 @@
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #ffffff;
+  --bg-off: #f7f6f4;
+  --border: #e8e6e2;
+  --mid: #9e9b96;
+  --dark: #3a3835;
+  --text: #111110;
+  --font-main: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+body.dark {
+  --bg: #111110;
+  --bg-off: #1c1b1a;
+  --border: #2e2d2b;
+  --mid: #5f5e5a;
+  --dark: #b0ada8;
+  --text: #f0ede8;
+}
+body { font-family: var(--font-main); background: var(--bg); color: var(--text); min-height: 100vh; transition: background 0.3s, color 0.3s; }
+
+header { background: var(--bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 2rem; height: 56px; transition: background 0.3s, border-color 0.3s; }
+.site-name { font-size: 15px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; color: var(--text); }
+.header-right { display: flex; align-items: center; gap: 1.25rem; }
+.photo-count { font-family: var(--font-mono); font-size: 12px; color: var(--mid); font-weight: 300; }
+
+nav { display: flex; gap: 1.5rem; align-items: center; position: relative; }
+nav a { font-size: 13px; font-weight: 400; color: var(--dark); text-decoration: none; letter-spacing: 0.03em; cursor: pointer; transition: color 0.2s; }
+nav a:hover { color: var(--text); }
+nav a.active { font-weight: 500; color: var(--text); border-bottom: 1px solid var(--text); padding-bottom: 1px; }
+
+.theme-toggle { display: flex; align-items: center; gap: 7px; }
+.dot {
+  width: 13px; height: 13px; border-radius: 50%; cursor: pointer;
+  transition: transform 0.15s, opacity 0.2s;
+  flex-shrink: 0;
+}
+.dot:hover { transform: scale(1.2); }
+.dot-dark { background: #111110; border: 1px solid #111110; }
+.dot-light { background: #ffffff; border: 1px solid #111110; }
+body.dark .dot-dark { background: #f0ede8; border-color: #f0ede8; }
+body.dark .dot-light { background: #111110; border-color: #f0ede8; }
+.dot.selected { opacity: 1; transform: scale(1.15); }
+.dot:not(.selected) { opacity: 0.45; }
+
+.upload-btn { background: var(--text); color: var(--bg); border: none; padding: 7px 16px; font-family: var(--font-main); font-size: 12px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; transition: opacity 0.2s, background 0.3s, color 0.3s; }
+.upload-btn:hover { opacity: 0.75; }
+
+.locations-dropdown { position: absolute; top: calc(100% + 16px); right: 0; background: var(--bg); border: 1px solid var(--border); min-width: 220px; z-index: 200; max-height: 360px; overflow-y: auto; transition: background 0.3s, border-color 0.3s; }
+.locations-dropdown.hidden { display: none; }
+.locations-dropdown-inner { padding: 0.5rem 0; }
+.loc-item { display: flex; align-items: center; justify-content: space-between; padding: 9px 1.25rem; cursor: pointer; transition: background 0.15s; font-size: 13px; font-weight: 400; color: var(--dark); }
+.loc-item:hover { background: var(--bg-off); color: var(--text); }
+.loc-item.active { font-weight: 500; color: var(--text); }
+.loc-count { font-family: var(--font-mono); font-size: 11px; color: var(--mid); font-weight: 300; }
+.loc-divider { border: none; border-top: 1px solid var(--border); margin: 0.4rem 0; }
+.loc-all { font-size: 13px; font-weight: 400; padding: 9px 1.25rem; cursor: pointer; color: var(--mid); transition: all 0.15s; display: flex; align-items: center; justify-content: space-between; }
+.loc-all:hover { background: var(--bg-off); color: var(--text); }
+.loc-all.active { font-weight: 500; color: var(--text); }
+.loc-empty { padding: 1rem 1.25rem; font-size: 13px; color: var(--mid); font-style: italic; font-weight: 300; }
+
+main { padding: 3rem 2rem 4rem; }
+.page-intro { max-width: 480px; margin-bottom: 3rem; }
+.page-intro .label { font-size: 13px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mid); margin-bottom: 0.5rem; }
+.page-intro h1 { font-size: 28px; font-weight: 300; line-height: 1.35; color: var(--text); margin: 0; }
+
+.controls-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border); transition: border-color 0.3s; }
+.view-toggle { display: flex; gap: 0.5rem; }
+.view-btn { background: none; border: none; cursor: pointer; color: var(--mid); display: flex; align-items: center; justify-content: center; padding: 4px; transition: color 0.18s; }
+.view-btn:hover, .view-btn.active { color: var(--text); }
+.view-btn svg { display: block; }
+
+.location-section { margin-bottom: 3.5rem; }
+.location-section-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: border-color 0.3s; }
+.location-section-header h2 { font-size: 16px; font-weight: 500; color: var(--text); letter-spacing: 0.02em; }
+.location-section-header .section-meta { font-family: var(--font-mono); font-size: 11px; color: var(--mid); font-weight: 300; }
+
+.gallery { columns: 3; column-gap: 12px; }
+.gallery.list-view { columns: 1; display: flex; flex-direction: column; gap: 1px; }
+.gallery-item { break-inside: avoid; margin-bottom: 12px; cursor: pointer; display: block; }
+.gallery-item-inner { position: relative; overflow: hidden; background: var(--bg-off); transition: background 0.3s; }
+.gallery-item img { width: 100%; height: auto; display: block; filter: grayscale(100%); transition: transform 0.5s cubic-bezier(0.25,0.46,0.45,0.94), filter 0.3s; }
+.gallery-item:hover img { transform: scale(1.03); filter: grayscale(80%); }
+.item-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 55%); opacity: 0; transition: opacity 0.3s; display: flex; align-items: flex-end; padding: 0.75rem; pointer-events: none; }
+.gallery-item:hover .item-overlay { opacity: 1; }
+.item-caption { margin-top: 8px; padding: 0 2px; }
+.item-caption .caption-year { font-family: var(--font-mono); font-size: 11px; color: var(--mid); font-weight: 300; }
+.item-orient-badge { position: absolute; top: 8px; right: 8px; font-family: var(--font-mono); font-size: 9px; font-weight: 300; letter-spacing: 0.08em; text-transform: uppercase; background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.85); padding: 3px 7px; opacity: 0; transition: opacity 0.3s; }
+.gallery-item:hover .item-orient-badge { opacity: 1; }
+.gallery.list-view .gallery-item { margin-bottom: 0; }
+.gallery.list-view .gallery-item-inner { display: flex; align-items: center; height: 72px; }
+.gallery.list-view .gallery-item-inner img { width: 72px; height: 72px; object-fit: cover; flex-shrink: 0; }
+.gallery.list-view .item-overlay { display: none; }
+.gallery.list-view .item-orient-badge { display: none; }
+.gallery.list-view .item-caption { margin-top: 0; padding: 0 1.25rem; flex: 1; display: flex; align-items: center; gap: 1.5rem; border-bottom: 1px solid var(--border); height: 72px; transition: border-color 0.3s; }
+
+.edit-link { margin-top: 4px; background: none; border: none; font-family: var(--font-main); font-size: 11px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--mid); cursor: pointer; padding: 0; transition: color 0.18s; display: block; }
+.edit-link:hover { color: var(--text); }
+
+.empty-state { text-align: center; padding: 5rem 0; color: var(--mid); }
+.empty-state p { font-size: 15px; font-weight: 300; }
+.hidden { display: none !important; }
+
+.modal-wrap { min-height: 500px; background: rgba(0,0,0,0.88); display: flex; align-items: center; justify-content: center; }
+.modal-wrap.hidden { display: none !important; }
+.panel { background: var(--bg); padding: 2.5rem; width: 480px; max-width: 92vw; transition: background 0.3s; }
+.panel-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; }
+.panel-header h2 { font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mid); }
+.panel-header p { font-size: 22px; font-weight: 300; color: var(--text); margin-top: 4px; }
+.close-btn { background: none; border: none; cursor: pointer; font-size: 24px; color: var(--mid); line-height: 1; padding: 0; }
+.close-btn:hover { color: var(--text); }
+.drop-zone { border: 1px dashed var(--border); padding: 2.5rem 2rem; text-align: center; margin-bottom: 1.25rem; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+.drop-zone:hover, .drop-zone.drag-over { border-color: var(--dark); background: var(--bg-off); }
+.drop-zone p { font-size: 13px; color: var(--mid); font-weight: 300; }
+.drop-zone strong { color: var(--dark); font-weight: 500; }
+.preview-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.preview-thumb { width: 52px; height: 52px; object-fit: cover; filter: grayscale(100%); border: 1px solid var(--border); }
+.form-row { margin-bottom: 1rem; }
+.form-row label { display: block; font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mid); margin-bottom: 6px; }
+.form-row input, .form-row select { width: 100%; border: 1px solid var(--border); background: var(--bg); font-family: var(--font-main); font-size: 14px; font-weight: 300; color: var(--text); padding: 9px 12px; outline: none; appearance: none; transition: border-color 0.2s, background 0.3s, color 0.3s; }
+.form-row input:focus, .form-row select:focus { border-color: var(--dark); }
+.form-row input::placeholder { color: var(--mid); }
+.form-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.submit-row { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem; }
+.cancel-btn { background: none; border: 1px solid var(--border); font-family: var(--font-main); font-size: 12px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: var(--mid); padding: 8px 16px; cursor: pointer; transition: all 0.18s; }
+.cancel-btn:hover { border-color: var(--dark); color: var(--dark); }
+
+.edit-modal-wrap { min-height: 420px; background: rgba(0,0,0,0.88); display: flex; align-items: center; justify-content: center; }
+.edit-modal-wrap.hidden { display: none !important; }
+
+.lightbox-wrap { min-height: 90vh; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; transition: background 0.3s; }
+.lightbox-wrap.hidden { display: none !important; }
+.lightbox-img-wrap { max-width: 82vw; max-height: 72vh; display: flex; align-items: center; justify-content: center; }
+.lightbox-img-wrap img { max-width: 100%; max-height: 72vh; object-fit: contain; filter: grayscale(100%); display: block; }
+.lightbox-meta { margin-top: 1.5rem; text-align: center; }
+.lightbox-meta .loc { font-size: 13px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text); }
+.lightbox-meta .yr { font-family: var(--font-mono); font-size: 12px; color: var(--mid); margin-top: 4px; font-weight: 300; }
+.lightbox-controls { display: flex; align-items: center; gap: 2rem; margin-top: 1.5rem; }
+.lb-nav { background: none; border: 1px solid var(--border); font-size: 20px; color: var(--mid); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.18s; }
+.lb-nav:hover { border-color: var(--text); color: var(--text); }
+.lb-close { background: none; border: none; font-family: var(--font-main); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mid); cursor: pointer; padding: 0; transition: color 0.18s; }
+.lb-close:hover { color: var(--text); }
+.lb-edit-btn { background: none; border: 1px solid var(--border); font-family: var(--font-main); font-size: 12px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: var(--dark); padding: 7px 14px; cursor: pointer; transition: all 0.18s; }
+.lb-edit-btn:hover { border-color: var(--text); color: var(--text); }
+#file-input { display: none; }
+</style>
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@300&display=swap" rel="stylesheet">
+
+<header>
+  <div class="site-name" onclick="goHome()">Nic Scholz</div>
+  <div class="header-right">
+    <span class="photo-count" id="photo-count">0 photos</span>
+    <nav>
+      <a id="nav-locations" class="active" onclick="toggleLocationsDropdown(event)">Locations ▾</a>
+      <div class="locations-dropdown hidden" id="locations-dropdown">
+        <div class="locations-dropdown-inner" id="locations-list"></div>
+      </div>
+    </nav>
+    <div class="theme-toggle">
+      <div class="dot dot-dark selected" id="dot-dark" onclick="setTheme('dark')" title="Dark mode"></div>
+      <div class="dot dot-light" id="dot-light" onclick="setTheme('light')" title="Light mode"></div>
+    </div>
+    <button class="upload-btn" onclick="openUpload()">+ Add Photo</button>
+  </div>
+</header>
+
+<main>
+  <div class="page-intro">
+    <div class="label" id="intro-label">All Locations</div>
+    <h1 id="intro-title">Moments collected<br>from the road.</h1>
+  </div>
+  <div class="controls-bar">
+    <span class="photo-count" id="filtered-count"></span>
+    <div class="view-toggle">
+      <button class="view-btn active" id="grid-btn" onclick="setView('grid')" title="Grid view">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <rect x="1" y="1" width="6" height="6"/><rect x="9" y="1" width="6" height="6"/>
+          <rect x="1" y="9" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/>
+        </svg>
+      </button>
+      <button class="view-btn" id="list-btn" onclick="setView('list')" title="List view">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <rect x="1" y="2" width="14" height="2"/><rect x="1" y="7" width="14" height="2"/>
+          <rect x="1" y="12" width="14" height="2"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div id="gallery-container"></div>
+  <div class="empty-state hidden" id="empty-state">
+    <p>No photos yet — click <strong>+ Add Photo</strong> to begin.</p>
+  </div>
+</main>
+
+<div class="modal-wrap hidden" id="upload-modal">
+  <div class="panel">
+    <div class="panel-header">
+      <div><h2>New Photo</h2><p>Add to gallery</p></div>
+      <button class="close-btn" onclick="closeUpload()">×</button>
+    </div>
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div style="font-size:28px;margin-bottom:0.6rem;opacity:0.35;">⬛</div>
+      <p><strong>Click to choose</strong> or drag & drop</p>
+      <p style="margin-top:4px;font-size:11px;">JPG, PNG, WEBP</p>
+    </div>
+    <div class="preview-strip" id="preview-strip"></div>
+    <input type="file" id="file-input" accept="image/*" multiple>
+    <div class="form-two-col">
+      <div class="form-row">
+        <label>Location</label>
+        <input type="text" id="input-location" placeholder="e.g. Kyoto, Japan">
+      </div>
+      <div class="form-row">
+        <label>Year</label>
+        <input type="number" id="input-year" placeholder="e.g. 2023" min="1900" max="2099">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Orientation</label>
+      <select id="input-orient">
+        <option value="auto">Auto-detect</option>
+        <option value="portrait">Portrait</option>
+        <option value="landscape">Landscape</option>
+        <option value="panorama">Panorama</option>
+      </select>
+    </div>
+    <div class="submit-row">
+      <button class="cancel-btn" onclick="closeUpload()">Cancel</button>
+      <button class="upload-btn" onclick="submitPhotos()">Add to Gallery</button>
+    </div>
+  </div>
+</div>
+
+<div class="edit-modal-wrap hidden" id="edit-modal">
+  <div class="panel">
+    <div class="panel-header">
+      <div><h2>Edit photo</h2><p>Update details</p></div>
+      <button class="close-btn" onclick="closeEdit()">×</button>
+    </div>
+    <div style="display:flex;gap:1rem;margin-bottom:1.5rem;">
+      <img id="edit-thumb" src="" alt="" style="width:90px;height:90px;object-fit:cover;filter:grayscale(100%);flex-shrink:0;border:1px solid var(--border);">
+      <div style="flex:1;">
+        <div class="form-row">
+          <label>Location</label>
+          <input type="text" id="edit-location" placeholder="e.g. Lisbon, Portugal">
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+          <label>Year</label>
+          <input type="number" id="edit-year" placeholder="e.g. 2022" min="1900" max="2099">
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Orientation</label>
+      <select id="edit-orient">
+        <option value="portrait">Portrait</option>
+        <option value="landscape">Landscape</option>
+        <option value="panorama">Panorama</option>
+      </select>
+    </div>
+    <div class="submit-row">
+      <button class="cancel-btn" onclick="closeEdit()">Cancel</button>
+      <button class="upload-btn" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox-wrap hidden" id="lightbox">
+  <div class="lightbox-img-wrap">
+    <img id="lightbox-img" src="" alt="">
+  </div>
+  <div class="lightbox-meta">
+    <div class="loc" id="lightbox-location"></div>
+    <div class="yr" id="lightbox-year"></div>
+  </div>
+  <div class="lightbox-controls">
+    <button class="lb-nav" onclick="navLightbox(-1)">‹</button>
+    <button class="lb-close" onclick="closeLightbox()">Close</button>
+    <button class="lb-edit-btn" onclick="openEditFromLightbox()">Edit details</button>
+    <button class="lb-nav" onclick="navLightbox(1)">›</button>
+  </div>
+</div>
+
+<script>
+let photos = [], pendingFiles = [], currentView = 'grid';
+let currentLocation = null;
+let lightboxIndex = 0, lightboxPool = [], editingPhotoId = null;
+let dropdownOpen = false;
+let theme = 'light';
+
+function setTheme(t) {
+  theme = t;
+  if (t === 'dark') {
+    document.body.classList.add('dark');
+    document.getElementById('dot-dark').classList.add('selected');
+    document.getElementById('dot-light').classList.remove('selected');
+  } else {
+    document.body.classList.remove('dark');
+    document.getElementById('dot-light').classList.add('selected');
+    document.getElementById('dot-dark').classList.remove('selected');
+  }
+}
+
+function getLocations() {
+  const map = {};
+  photos.forEach(p => {
+    const loc = p.location || 'Unknown';
+    if (!map[loc]) map[loc] = 0;
+    map[loc]++;
+  });
+  return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function buildDropdown() {
+  const list = document.getElementById('locations-list');
+  const locs = getLocations();
+  list.innerHTML = '';
+  if (photos.length === 0) { list.innerHTML = '<div class="loc-empty">No locations yet</div>'; return; }
+  const allEl = document.createElement('div');
+  allEl.className = 'loc-all' + (currentLocation === null ? ' active' : '');
+  allEl.innerHTML = `<span>All locations</span><span class="loc-count">${photos.length}</span>`;
+  allEl.onclick = () => { setLocation(null); closeDropdown(); };
+  list.appendChild(allEl);
+  const hr = document.createElement('hr'); hr.className = 'loc-divider';
+  list.appendChild(hr);
+  locs.forEach(([loc, count]) => {
+    const el = document.createElement('div');
+    el.className = 'loc-item' + (currentLocation === loc ? ' active' : '');
+    el.innerHTML = `<span>${loc}</span><span class="loc-count">${count}</span>`;
+    el.onclick = () => { setLocation(loc); closeDropdown(); };
+    list.appendChild(el);
+  });
+}
+
+function toggleLocationsDropdown(e) {
+  e.stopPropagation();
+  dropdownOpen = !dropdownOpen;
+  const dd = document.getElementById('locations-dropdown');
+  if (dropdownOpen) { buildDropdown(); dd.classList.remove('hidden'); }
+  else { dd.classList.add('hidden'); }
+}
+
+function closeDropdown() {
+  dropdownOpen = false;
+  document.getElementById('locations-dropdown').classList.add('hidden');
+}
+
+document.addEventListener('click', () => closeDropdown());
+
+function setLocation(loc) {
+  currentLocation = loc;
+  const introLabel = document.getElementById('intro-label');
+  const introTitle = document.getElementById('intro-title');
+  if (loc === null) { introLabel.textContent = 'All Locations'; introTitle.innerHTML = 'Moments collected<br>from the road.'; }
+  else { introLabel.textContent = 'Location'; introTitle.textContent = loc; }
+  renderGallery();
+}
+
+function goHome() { setLocation(null); }
+
+function renderGallery() {
+  const container = document.getElementById('gallery-container');
+  const es = document.getElementById('empty-state');
+  const pc = document.getElementById('photo-count');
+  const fc = document.getElementById('filtered-count');
+  container.innerHTML = '';
+  pc.textContent = photos.length + ' photo' + (photos.length !== 1 ? 's' : '');
+  if (photos.length === 0) { es.classList.remove('hidden'); fc.textContent = ''; return; }
+  es.classList.add('hidden');
+
+  if (currentLocation !== null) {
+    const filtered = photos.filter(p => (p.location || 'Unknown') === currentLocation);
+    fc.textContent = filtered.length + ' photo' + (filtered.length !== 1 ? 's' : '');
+    container.appendChild(buildGalleryEl(filtered));
+  } else {
+    const locs = getLocations();
+    let total = 0;
+    locs.forEach(([loc, count]) => {
+      total += count;
+      const section = document.createElement('div');
+      section.className = 'location-section';
+      const header = document.createElement('div');
+      header.className = 'location-section-header';
+      header.innerHTML = `<h2>${loc}</h2><span class="section-meta">${count} photo${count !== 1 ? 's' : ''}</span>`;
+      header.onclick = () => setLocation(loc);
+      const filtered = photos.filter(p => (p.location || 'Unknown') === loc);
+      section.appendChild(header);
+      section.appendChild(buildGalleryEl(filtered));
+      container.appendChild(section);
+    });
+    fc.textContent = total + ' photo' + (total !== 1 ? 's' : '');
+  }
+}
+
+function buildGalleryEl(photoList) {
+  const g = document.createElement('div');
+  g.className = 'gallery' + (currentView === 'list' ? ' list-view' : '');
+  photoList.forEach((photo, idx) => {
+    const item = document.createElement('div');
+    item.className = 'gallery-item';
+    const inner = document.createElement('div');
+    inner.className = 'gallery-item-inner';
+    const img = document.createElement('img');
+    img.src = photo.src; img.alt = photo.location || 'Photo'; img.loading = 'lazy';
+    inner.onclick = () => openLightbox(idx, photoList);
+    const overlay = document.createElement('div'); overlay.className = 'item-overlay';
+    const badge = document.createElement('div'); badge.className = 'item-orient-badge'; badge.textContent = photo.orientation;
+    inner.appendChild(img); inner.appendChild(overlay); inner.appendChild(badge);
+    const caption = document.createElement('div');
+    caption.className = 'item-caption';
+    const yearEl = document.createElement('div');
+    yearEl.className = 'caption-year';
+    yearEl.textContent = photo.year || '—';
+    caption.appendChild(yearEl);
+    const editBtn = document.createElement('button');
+    editBtn.className = 'edit-link';
+    editBtn.textContent = 'Edit';
+    editBtn.onclick = (e) => { e.stopPropagation(); openEdit(photo.id); };
+    caption.appendChild(editBtn);
+    item.appendChild(inner); item.appendChild(caption);
+    g.appendChild(item);
+  });
+  return g;
+}
+
+function setView(v) {
+  currentView = v;
+  document.getElementById('grid-btn').classList.toggle('active', v === 'grid');
+  document.getElementById('list-btn').classList.toggle('active', v === 'list');
+  renderGallery();
+}
+
+function openUpload() {
+  document.getElementById('upload-modal').classList.remove('hidden');
+  pendingFiles = [];
+  document.getElementById('preview-strip').innerHTML = '';
+  document.getElementById('input-location').value = currentLocation || '';
+  document.getElementById('input-year').value = new Date().getFullYear();
+  document.getElementById('input-orient').value = 'auto';
+}
+
+function closeUpload() {
+  document.getElementById('upload-modal').classList.add('hidden');
+  pendingFiles = []; document.getElementById('preview-strip').innerHTML = '';
+}
+
+document.getElementById('file-input').addEventListener('change', function() {
+  addFilesToPending(Array.from(this.files)); this.value = '';
+});
+
+function addFilesToPending(files) {
+  files.forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const src = e.target.result;
+      pendingFiles.push({ src });
+      const thumb = document.createElement('img');
+      thumb.src = src; thumb.className = 'preview-thumb';
+      document.getElementById('preview-strip').appendChild(thumb);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); addFilesToPending(Array.from(e.dataTransfer.files)); });
+
+function detectOrientation(img) {
+  const r = img.naturalWidth / img.naturalHeight;
+  if (r > 2.2) return 'panorama';
+  if (r < 0.85) return 'portrait';
+  return 'landscape';
+}
+
+function submitPhotos() {
+  if (pendingFiles.length === 0) return;
+  const location = document.getElementById('input-location').value.trim();
+  const year = document.getElementById('input-year').value.trim();
+  const orientPref = document.getElementById('input-orient').value;
+  let processed = 0;
+  pendingFiles.forEach(({ src }) => {
+    const img = new Image();
+    img.onload = () => {
+      const orient = orientPref === 'auto' ? detectOrientation(img) : orientPref;
+      photos.unshift({ id: Date.now() + Math.random(), src, location: location || 'Unknown', year: year || '', orientation: orient });
+      processed++;
+      if (processed === pendingFiles.length) { renderGallery(); closeUpload(); }
+    };
+    img.src = src;
+  });
+}
+
+function openEdit(id) {
+  const photo = photos.find(p => p.id === id);
+  if (!photo) return;
+  editingPhotoId = id;
+  document.getElementById('edit-thumb').src = photo.src;
+  document.getElementById('edit-location').value = photo.location || '';
+  document.getElementById('edit-year').value = photo.year || '';
+  document.getElementById('edit-orient').value = photo.orientation;
+  document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function closeEdit() {
+  document.getElementById('edit-modal').classList.add('hidden');
+  editingPhotoId = null;
+}
+
+function saveEdit() {
+  const photo = photos.find(p => p.id === editingPhotoId);
+  if (!photo) return;
+  photo.location = document.getElementById('edit-location').value.trim() || 'Unknown';
+  photo.year = document.getElementById('edit-year').value.trim();
+  photo.orientation = document.getElementById('edit-orient').value;
+  renderGallery(); closeEdit();
+  if (!document.getElementById('lightbox').classList.contains('hidden')) {
+    document.getElementById('lightbox-location').textContent = photo.location || '';
+    document.getElementById('lightbox-year').textContent = photo.year || '';
+  }
+}
+
+function openEditFromLightbox() {
+  const photo = lightboxPool[lightboxIndex];
+  if (photo) openEdit(photo.id);
+}
+
+function openLightbox(idx, pool) {
+  lightboxPool = pool; lightboxIndex = idx;
+  showLightboxPhoto();
+  document.getElementById('lightbox').classList.remove('hidden');
+  document.addEventListener('keydown', lightboxKey);
+}
+
+function showLightboxPhoto() {
+  const p = lightboxPool[lightboxIndex];
+  document.getElementById('lightbox-img').src = p.src;
+  document.getElementById('lightbox-location').textContent = p.location || '';
+  document.getElementById('lightbox-year').textContent = p.year || '';
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.add('hidden');
+  document.removeEventListener('keydown', lightboxKey);
+}
+
+function navLightbox(dir) {
+  lightboxIndex = (lightboxIndex + dir + lightboxPool.length) % lightboxPool.length;
+  showLightboxPhoto();
+}
+
+function lightboxKey(e) {
+  if (e.key === 'ArrowRight') navLightbox(1);
+  if (e.key === 'ArrowLeft') navLightbox(-1);
+  if (e.key === 'Escape') closeLightbox();
+}
+
+setTheme('light');
+renderGallery();
+</script>

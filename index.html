@@ -476,6 +476,15 @@ main { padding: 3rem 2rem 4rem; }
   display: block;
   filter: grayscale(100%);
   transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), filter 0.3s;
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  pointer-events: none;
 }
 .gallery-item:hover img { transform: scale(1.03); filter: grayscale(0%); }
 
@@ -737,7 +746,13 @@ main { padding: 3rem 2rem 4rem; }
   display: block;
   transition: max-width 0.3s ease, max-height 0.3s ease;
   user-select: none;
+  -webkit-user-select: none;
   -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  -webkit-touch-callout: none;
 }
 
 /* Zoomed: the whole image expands to fill nearly the entire screen, staying fully visible */
@@ -1668,6 +1683,20 @@ lightboxEl.addEventListener('touchend', e => {
     navLightbox(dx < 0 ? 1 : -1);
   }
 }, { passive: true });
+
+// ── IMAGE PROTECTION ──
+// Block right-click / long-press context menu on photos (gallery + lightbox)
+document.addEventListener('contextmenu', e => {
+  if (e.target && e.target.tagName === 'IMG' && e.target.closest('.gallery-item, .lightbox-img-wrap')) {
+    e.preventDefault();
+  }
+});
+// Block drag-start on any photo
+document.addEventListener('dragstart', e => {
+  if (e.target && e.target.tagName === 'IMG' && e.target.closest('.gallery-item, .lightbox-img-wrap')) {
+    e.preventDefault();
+  }
+});
 
 // ── INIT ──
 const savedTheme = localStorage.getItem('theme') || 'light';

@@ -1162,6 +1162,11 @@ function getPublicUrl(storagePath) {
   return data.publicUrl;
 }
 
+// Derive the thumbnail path from a full-image path (foo.jpg -> foo_thumb.jpg)
+function thumbPathFor(storagePath) {
+  return storagePath.replace(/\.jpg$/i, '_thumb.jpg');
+}
+
 async function loadPhotos() {
   document.getElementById('loading-state').classList.remove('hidden');
   document.getElementById('gallery-container').innerHTML = '';
@@ -1169,7 +1174,11 @@ async function loadPhotos() {
   const { data, error } = await db.from('photos').select('*').order('created_at', { ascending: false });
   document.getElementById('loading-state').classList.add('hidden');
   if (error) { console.error('Load error:', error); return; }
-  photos = (data || []).map(row => ({ ...row, src: getPublicUrl(row.storage_path) }));
+  photos = (data || []).map(row => ({
+    ...row,
+    src: getPublicUrl(row.storage_path),                    // full-size, used in lightbox
+    thumbSrc: getPublicUrl(thumbPathFor(row.storage_path))  // small, used in gallery grid
+  }));
   renderGallery();
 }
 
@@ -1316,7 +1325,11 @@ function buildGalleryEl(photoList) {
     const inner = document.createElement('div');
     inner.className = 'gallery-item-inner';
     const img = document.createElement('img');
-    img.src = photo.src; img.alt = photo.location || 'Photo'; img.loading = 'lazy';
+    // Gallery grid loads the small thumbnail to save bandwidth;
+    // falls back to the full image if a thumb is missing (older uploads).
+    img.src = photo.thumbSrc || photo.src;
+    img.onerror = () => { if (img.src !== photo.src) img.src = photo.src; };
+    img.alt = photo.location || 'Photo'; img.loading = 'lazy';
     inner.onclick = () => openLightbox(idx, photoList);
     const overlay = document.createElement('div'); overlay.className = 'item-overlay';
     const badge = document.createElement('div'); badge.className = 'item-orient-badge'; badge.textContent = photo.orientation;
@@ -1449,48 +1462,46 @@ function detectOrientation(img) {
 }
 
 // ── IMAGE COMPRESSION (runs in the browser before upload) ──
-const MAX_DIMENSION = 2400;   // longest edge in pixels
-const JPEG_QUALITY = 0.82;    // 0–1 (0.82 ≈ 82% quality)
+const FULL_MAX_DIMENSION = 2400;   // full-size longest edge (lightbox)
+const FULL_QUALITY = 0.82;         // full-size JPEG quality
+const THUMB_MAX_DIMENSION = 700;   // thumbnail longest edge (gallery grid)
+const THUMB_QUALITY = 0.7;         // thumbnail JPEG quality
 
-// Takes a File, returns a compressed JPEG Blob (plus the loaded image for orientation)
-function compressImage(file, dataUrl) {
+// Load a data URL into an Image once, so we can reuse it for both sizes
+function loadImage(dataUrl) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => {
-      let { width, height } = img;
-
-      // Scale down so the longest edge is at most MAX_DIMENSION
-      if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-        if (width >= height) {
-          height = Math.round(height * (MAX_DIMENSION / width));
-          width = MAX_DIMENSION;
-        } else {
-          width = Math.round(width * (MAX_DIMENSION / height));
-          height = MAX_DIMENSION;
-        }
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, width, height);
-
-      canvas.toBlob(
-        blob => {
-          if (!blob) { reject(new Error('Compression failed')); return; }
-          // Safety net: if compression somehow made it bigger, keep the original
-          const finalBlob = blob.size < file.size ? blob : file;
-          resolve({ blob: finalBlob, img });
-        },
-        'image/jpeg',
-        JPEG_QUALITY
-      );
-    };
+    img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('Could not read image'));
     img.src = dataUrl;
+  });
+}
+
+// Render a loaded Image to a compressed JPEG Blob at a given max dimension/quality
+function renderToBlob(img, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    let { width, height } = img;
+    if (width > maxDim || height > maxDim) {
+      if (width >= height) {
+        height = Math.round(height * (maxDim / width));
+        width = maxDim;
+      } else {
+        width = Math.round(width * (maxDim / height));
+        height = maxDim;
+      }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, width, height);
+    canvas.toBlob(
+      blob => blob ? resolve(blob) : reject(new Error('Compression failed')),
+      'image/jpeg',
+      quality
+    );
   });
 }
 
@@ -1506,25 +1517,41 @@ async function submitPhotos() {
   progressEl.classList.remove('hidden');
   progressEl.textContent = `Processing 0 of ${pendingFiles.length}...`;
   submitBtn.disabled = true;
+
+  // Cache for 1 year — returning visitors pull from browser cache instead of
+  // re-downloading, which keeps Supabase egress low.
+  const CACHE = '31536000';
+  const store = db.storage.from('photos');
+
   let uploaded = 0;
   for (const { file, src } of pendingFiles) {
     try {
       progressEl.textContent = `Optimizing ${uploaded + 1} of ${pendingFiles.length}...`;
 
-      // Compress + resize in the browser before uploading
-      const { blob, img } = await compressImage(file, src);
-
-      // Determine orientation from the loaded image
+      // Load once, then render both a full-size and a thumbnail version
+      const img = await loadImage(src);
       const orient = orientPref !== 'auto' ? orientPref : detectOrientation(img);
+      const fullBlob = await renderToBlob(img, FULL_MAX_DIMENSION, FULL_QUALITY);
+      const thumbBlob = await renderToBlob(img, THUMB_MAX_DIMENSION, THUMB_QUALITY);
 
       progressEl.textContent = `Uploading ${uploaded + 1} of ${pendingFiles.length}...`;
 
-      // Always store as .jpg since we compress to JPEG
-      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-      const { error: storageError } = await db.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg' });
-      if (storageError) throw storageError;
-      const { error: dbError } = await db.from('photos').insert({ location, year: year || null, orientation: orient, storage_path: path });
+      const base = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const fullPath = `${base}.jpg`;
+      const thumbPath = `${base}_thumb.jpg`;
+
+      // Upload full-size
+      const { error: fullErr } = await store.upload(fullPath, fullBlob, { contentType: 'image/jpeg', cacheControl: CACHE });
+      if (fullErr) throw fullErr;
+
+      // Upload thumbnail
+      const { error: thumbErr } = await store.upload(thumbPath, thumbBlob, { contentType: 'image/jpeg', cacheControl: CACHE });
+      if (thumbErr) throw thumbErr;
+
+      // Save metadata (storage_path points to the full image; thumb path is derived)
+      const { error: dbError } = await db.from('photos').insert({ location, year: year || null, orientation: orient, storage_path: fullPath });
       if (dbError) throw dbError;
+
       uploaded++;
       progressEl.textContent = `Uploaded ${uploaded} of ${pendingFiles.length}...`;
     } catch (err) {
@@ -1593,7 +1620,8 @@ async function confirmDelete() {
   const photo = photos.find(p => p.id === editingPhotoId);
   if (!photo) return;
   if (!confirm(`Delete this photo from ${photo.location || 'Unknown'}? This cannot be undone.`)) return;
-  await db.storage.from('photos').remove([photo.storage_path]);
+  // Remove both the full image and its thumbnail
+  await db.storage.from('photos').remove([photo.storage_path, thumbPathFor(photo.storage_path)]);
   await db.from('photos').delete().eq('id', photo.id);
   closeEdit();
   closeLightbox();

@@ -155,6 +155,19 @@ body.dark .dot-light { background: #111110; border-color: #f0ede8; }
 }
 .add-btn:hover { opacity: 0.45; }
 
+.admin-link {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--mid);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color 0.18s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.admin-link:hover { color: var(--text); }
+
 /* ── SHARED BUTTON ── */
 .upload-btn {
   background: var(--text);
@@ -967,7 +980,10 @@ main { padding: 3rem 2rem 4rem; }
       <div class="dot dot-dark" id="dot-dark" onclick="setTheme('dark')" title="Dark mode"></div>
       <div class="dot dot-light selected" id="dot-light" onclick="setTheme('light')" title="Light mode"></div>
     </div>
-    <button class="add-btn" id="add-photo-btn" onclick="handleAddClick()" title="Add photo">+</button>
+    <!-- Admin-only: add photo (hidden until logged in) -->
+    <button class="add-btn hidden" id="add-photo-btn" onclick="openUpload()" title="Add photo">+</button>
+    <!-- Admin-only: logout (hidden until logged in) -->
+    <a class="admin-link hidden" id="logout-link" onclick="doLogout()">Log out</a>
     <!-- Hamburger for mobile -->
     <button class="mobile-menu-btn" onclick="toggleMobileMenu(event)" aria-label="Menu">
       <svg id="hamburger-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
@@ -1012,22 +1028,27 @@ main { padding: 3rem 2rem 4rem; }
   <div class="loading-state" id="loading-state"><p>Loading gallery...</p></div>
   <div id="gallery-container"></div>
   <div class="empty-state hidden" id="empty-state">
-    <p>No photos yet — click <strong>+</strong> to begin.</p>
+    <p>No photos to show yet.</p>
   </div>
 </main>
 
-<!-- Password Modal -->
-<div class="modal-wrap hidden" id="password-modal">
+<!-- Login Modal -->
+<div class="modal-wrap hidden" id="login-modal">
   <div class="password-panel">
-    <h2>Protected</h2>
-    <p>Enter password<br>to continue.</p>
-    <div class="password-input-wrap">
-      <input type="password" id="password-input" placeholder="············" autocomplete="current-password" onkeydown="handlePasswordKey(event)">
+    <h2>Admin</h2>
+    <p>Log in to manage<br>your gallery.</p>
+    <div class="form-row">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="you@example.com" autocomplete="username" onkeydown="handleLoginKey(event)">
     </div>
-    <div class="password-error" id="password-error"></div>
+    <div class="form-row">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" onkeydown="handleLoginKey(event)">
+    </div>
+    <div class="password-error" id="login-error"></div>
     <div class="password-submit-row">
-      <button class="cancel-btn" onclick="closePasswordModal()">Cancel</button>
-      <button class="upload-btn" onclick="submitPassword()">Enter</button>
+      <button class="cancel-btn" onclick="closeLoginModal()">Cancel</button>
+      <button class="upload-btn" id="login-submit-btn" onclick="doLogin()">Log in</button>
     </div>
   </div>
 </div>
@@ -1125,7 +1146,7 @@ main { padding: 3rem 2rem 4rem; }
   <div class="lightbox-controls">
     <button class="lb-nav" onclick="navLightbox(-1)">‹</button>
     <button class="lb-zoom" id="lb-zoom-btn" onclick="toggleZoom()">Zoom in</button>
-    <button class="lb-edit-btn" onclick="openEditFromLightbox()">Edit</button>
+    <button class="lb-edit-btn hidden" id="lb-edit-btn" onclick="openEditFromLightbox()">Edit</button>
     <button class="lb-nav" onclick="navLightbox(1)">›</button>
   </div>
 </div>
@@ -1350,11 +1371,13 @@ function buildGalleryEl(photoList) {
     yearEl.className = 'caption-year';
     yearEl.textContent = photo.year || '—';
     caption.appendChild(yearEl);
-    const editBtn = document.createElement('button');
-    editBtn.className = 'edit-link';
-    editBtn.textContent = 'Edit';
-    editBtn.onclick = (e) => { e.stopPropagation(); openEdit(photo.id); };
-    caption.appendChild(editBtn);
+    if (isAdmin) {
+      const editBtn = document.createElement('button');
+      editBtn.className = 'edit-link';
+      editBtn.textContent = 'Edit';
+      editBtn.onclick = (e) => { e.stopPropagation(); openEdit(photo.id); };
+      caption.appendChild(editBtn);
+    }
     item.appendChild(inner); item.appendChild(caption);
     g.appendChild(item);
   });
@@ -1368,62 +1391,90 @@ function setView(v) {
   renderGallery();
 }
 
-// ── PASSWORD GATE ──
-const SITE_PASSWORD = 'nicscholz2024'; // ← change this to your own password
-let isAuthenticated = false;
-let pendingAction = null;
+// ── AUTHENTICATION (Supabase Auth) ──
+let isAdmin = false;
 
-function handleAddClick() {
-  if (isAuthenticated) { openUpload(); return; }
-  pendingAction = 'upload';
-  openPasswordModal();
+// Reflect login state across the whole UI
+function applyAuthState() {
+  document.getElementById('add-photo-btn').classList.toggle('hidden', !isAdmin);
+  document.getElementById('logout-link').classList.toggle('hidden', !isAdmin);
+  document.body.classList.toggle('is-admin', isAdmin);
+  renderGallery(); // re-render so Edit links show/hide
 }
 
-function requireAuth(action) {
-  if (isAuthenticated) { action(); return; }
-  pendingAction = action;
-  openPasswordModal();
+// Check for an existing session on load, and listen for changes
+async function initAuth() {
+  const { data } = await db.auth.getSession();
+  isAdmin = !!(data && data.session);
+  applyAuthState();
+
+  db.auth.onAuthStateChange((_event, session) => {
+    isAdmin = !!session;
+    applyAuthState();
+  });
 }
 
-function openPasswordModal() {
-  document.getElementById('password-input').value = '';
-  document.getElementById('password-error').textContent = '';
-  document.getElementById('password-input').classList.remove('shake');
-  document.getElementById('password-modal').classList.remove('hidden');
-  setTimeout(() => document.getElementById('password-input').focus(), 50);
-}
-
-function closePasswordModal() {
-  document.getElementById('password-modal').classList.add('hidden');
-  pendingAction = null;
-}
-
-function handlePasswordKey(e) {
-  if (e.key === 'Enter') submitPassword();
-  if (e.key === 'Escape') closePasswordModal();
-}
-
-function submitPassword() {
-  const input = document.getElementById('password-input');
-  const errEl = document.getElementById('password-error');
-  if (input.value === SITE_PASSWORD) {
-    isAuthenticated = true;
-    closePasswordModal();
-    if (pendingAction === 'upload') openUpload();
-    else if (typeof pendingAction === 'function') pendingAction();
-    pendingAction = null;
-  } else {
-    errEl.textContent = 'Incorrect password.';
-    input.classList.remove('shake');
-    void input.offsetWidth; // trigger reflow for animation replay
-    input.classList.add('shake');
-    input.value = '';
-    setTimeout(() => input.focus(), 50);
+// The admin login page is reached via the #admin hash in the URL
+function checkAdminRoute() {
+  if (window.location.hash === '#admin' && !isAdmin) {
+    openLoginModal();
   }
+}
+window.addEventListener('hashchange', checkAdminRoute);
+
+function openLoginModal() {
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('login-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('login-email').focus(), 50);
+}
+
+function closeLoginModal() {
+  document.getElementById('login-modal').classList.add('hidden');
+  // Clear the #admin hash so closing returns to a clean URL
+  if (window.location.hash === '#admin') {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+}
+
+function handleLoginKey(e) {
+  if (e.key === 'Enter') doLogin();
+  if (e.key === 'Escape') closeLoginModal();
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('login-submit-btn');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Enter your email and password.'; return; }
+  btn.disabled = true;
+  btn.textContent = 'Logging in...';
+
+  const { error } = await db.auth.signInWithPassword({ email, password });
+
+  btn.disabled = false;
+  btn.textContent = 'Log in';
+
+  if (error) {
+    errEl.textContent = 'Incorrect email or password.';
+    return;
+  }
+  // Success — onAuthStateChange updates the UI
+  closeLoginModal();
+}
+
+async function doLogout() {
+  await db.auth.signOut();
+  isAdmin = false;
+  applyAuthState();
 }
 
 // ── UPLOAD ──
 function openUpload() {
+  if (!isAdmin) { openLoginModal(); return; }
   document.getElementById('upload-modal').classList.remove('hidden');
   pendingFiles = [];
   document.getElementById('preview-strip').innerHTML = '';
@@ -1578,7 +1629,8 @@ async function submitPhotos() {
 
 // ── EDIT ──
 function openEdit(id) {
-  requireAuth(() => _openEdit(id));
+  if (!isAdmin) { openLoginModal(); return; }
+  _openEdit(id);
 }
 
 function _openEdit(id) {
@@ -1658,6 +1710,7 @@ function showLightboxPhoto() {
   document.getElementById('lightbox-img').src = p.src;
   document.getElementById('lightbox-location').textContent = p.location || '';
   document.getElementById('lightbox-year').textContent = p.year || '';
+  document.getElementById('lb-edit-btn').classList.toggle('hidden', !isAdmin);
   resetZoom();
 }
 
@@ -1739,7 +1792,12 @@ document.addEventListener('dragstart', e => {
 // ── INIT ──
 const savedTheme = localStorage.getItem('theme') || 'light';
 setTheme(savedTheme);
-loadPhotos();
+
+(async () => {
+  await initAuth();      // restore any existing login session
+  await loadPhotos();    // load the gallery
+  checkAdminRoute();     // if the URL is #admin and not logged in, show login
+})();
 </script>
 </body>
 </html>

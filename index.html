@@ -1328,7 +1328,17 @@ function buildGalleryEl(photoList) {
     // Gallery grid loads the small thumbnail to save bandwidth;
     // falls back to the full image if a thumb is missing (older uploads).
     img.src = photo.thumbSrc || photo.src;
-    img.onerror = () => { if (img.src !== photo.src) img.src = photo.src; };
+    let triedFull = false;
+    img.onerror = () => {
+      if (!triedFull && img.src !== photo.src) {
+        // First failure: try the full-size image
+        triedFull = true;
+        img.src = photo.src;
+      } else {
+        // Both failed (file missing from storage) — hide this item entirely
+        item.style.display = 'none';
+      }
+    };
     img.alt = photo.location || 'Photo'; img.loading = 'lazy';
     inner.onclick = () => openLightbox(idx, photoList);
     const overlay = document.createElement('div'); overlay.className = 'item-overlay';

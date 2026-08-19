@@ -501,6 +501,12 @@ main { padding: 3rem 2rem 4rem; }
 }
 .gallery-item:hover img { transform: scale(1.03); filter: grayscale(0%); }
 
+/* On touch devices there's no hover to reveal color, so show photos in
+   full color by default. Targets phones and touch tablets specifically. */
+@media (hover: none) {
+  .gallery-item img { filter: grayscale(0%); }
+}
+
 .item-overlay {
   position: absolute;
   inset: 0;

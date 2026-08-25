@@ -427,6 +427,28 @@ main { padding: 3rem 2rem 4rem; }
   transition: border-color 0.3s;
 }
 
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.scatter-btn {
+  background: var(--bg-off);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: var(--font-main);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mid);
+  padding: 6px 14px;
+  transition: color 0.18s, background 0.18s, border-color 0.18s;
+}
+.scatter-btn:hover { color: var(--text); border-color: var(--dark); }
+.scatter-btn.active { color: var(--bg); background: var(--text); border-color: var(--text); }
+
 .view-toggle { display: flex; gap: 0.5rem; }
 .view-btn {
   background: none;
@@ -536,6 +558,8 @@ main { padding: 3rem 2rem 4rem; }
   transition: opacity 0.3s;
 }
 .gallery-item:hover .item-orient-badge { opacity: 1; }
+/* Location badge shown in Scatter mode — always visible, not hover-gated */
+.item-orient-badge.always { opacity: 1; }
 
 .item-caption { margin-top: 8px; padding: 0 2px; }
 .item-caption .caption-year {
@@ -932,6 +956,7 @@ main { padding: 3rem 2rem 4rem; }
 
   /* Tighter controls bar */
   .controls-bar { margin-bottom: 1.5rem; }
+  .controls-right { gap: 1rem; }
 
   /* Full-width modal panel */
   .modal-wrap { padding: 0; align-items: flex-end; }
@@ -1015,19 +1040,23 @@ main { padding: 3rem 2rem 4rem; }
 
   <div class="controls-bar">
     <span class="photo-count" id="filtered-count"></span>
-    <div class="view-toggle">
-      <button class="view-btn active" id="grid-btn" onclick="setView('grid')" title="Grid view">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <rect x="1" y="1" width="6" height="6"/><rect x="9" y="1" width="6" height="6"/>
-          <rect x="1" y="9" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/>
-        </svg>
-      </button>
-      <button class="view-btn" id="list-btn" onclick="setView('list')" title="List view">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <rect x="1" y="2" width="14" height="2"/><rect x="1" y="7" width="14" height="2"/>
-          <rect x="1" y="12" width="14" height="2"/>
-        </svg>
-      </button>
+    <div class="controls-right">
+      <button class="scatter-btn active" id="location-btn" onclick="showByLocation()">Location</button>
+      <button class="scatter-btn" id="scatter-btn" onclick="toggleScatter()">Scatter</button>
+      <div class="view-toggle">
+        <button class="view-btn active" id="grid-btn" onclick="setView('grid')" title="Grid view">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="1" y="1" width="6" height="6"/><rect x="9" y="1" width="6" height="6"/>
+            <rect x="1" y="9" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/>
+          </svg>
+        </button>
+        <button class="view-btn" id="list-btn" onclick="setView('list')" title="List view">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="1" y="2" width="14" height="2"/><rect x="1" y="7" width="14" height="2"/>
+            <rect x="1" y="12" width="14" height="2"/>
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -1168,6 +1197,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let photos = [], pendingFiles = [], currentView = 'grid';
 let currentLocation = null, lightboxIndex = 0, lightboxPool = [];
 let editingPhotoId = null, dropdownOpen = false, mobileMenuOpen = false;
+let scatterMode = false, scatterOrder = [];
 
 // ── THEME ──
 function setTheme(t) {
@@ -1206,6 +1236,7 @@ async function loadPhotos() {
     src: getPublicUrl(row.storage_path),                    // full-size, used in lightbox
     thumbSrc: getPublicUrl(thumbPathFor(row.storage_path))  // small, used in gallery grid
   }));
+  if (scatterMode) scatterOrder = shuffledPhotos(); // keep scatter fresh after data changes
   renderGallery();
 }
 
@@ -1301,13 +1332,51 @@ function closeDropdown() {
 }
 
 function setLocation(loc) {
+  scatterMode = false;
+  document.getElementById('scatter-btn').classList.remove('active');
+  document.getElementById('location-btn').classList.add('active');
   currentLocation = loc;
   document.getElementById('intro-label').textContent = loc === null ? 'All Locations' : 'Location';
   document.getElementById('intro-title').innerHTML = loc === null ? 'Moments collected.' : loc;
   renderGallery();
 }
 
+// Return to the organized, by-location view (exits Scatter)
+function showByLocation() {
+  setLocation(null);
+  closeMobileMenu();
+}
+
 function goHome() { setLocation(null); closeMobileMenu(); }
+
+// ── SCATTER ──
+// Fisher–Yates shuffle over a copy of all photos
+function shuffledPhotos() {
+  const arr = photos.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function toggleScatter() {
+  if (scatterMode) {
+    // Already scattered — reshuffle for a fresh arrangement
+    scatterOrder = shuffledPhotos();
+    renderGallery();
+    return;
+  }
+  scatterMode = true;
+  currentLocation = null;
+  scatterOrder = shuffledPhotos();
+  document.getElementById('scatter-btn').classList.add('active');
+  document.getElementById('location-btn').classList.remove('active');
+  document.getElementById('intro-label').textContent = 'Scattered';
+  document.getElementById('intro-title').innerHTML = 'Moments collected.';
+  closeMobileMenu();
+  renderGallery();
+}
 
 // ── RENDER ──
 function renderGallery() {
@@ -1319,7 +1388,11 @@ function renderGallery() {
   pc.textContent = photos.length + ' photo' + (photos.length !== 1 ? 's' : '');
   if (photos.length === 0) { es.classList.remove('hidden'); fc.textContent = ''; return; }
   es.classList.add('hidden');
-  if (currentLocation !== null) {
+  if (scatterMode) {
+    // One shuffled wall of all photos, each tagged with its location
+    fc.textContent = scatterOrder.length + ' photo' + (scatterOrder.length !== 1 ? 's' : '');
+    container.appendChild(buildGalleryEl(scatterOrder, { locationBadge: true }));
+  } else if (currentLocation !== null) {
     const filtered = photos.filter(p => (p.location || 'Unknown') === currentLocation);
     fc.textContent = filtered.length + ' photo' + (filtered.length !== 1 ? 's' : '');
     container.appendChild(buildGalleryEl(filtered));
@@ -1343,7 +1416,8 @@ function renderGallery() {
   }
 }
 
-function buildGalleryEl(photoList) {
+function buildGalleryEl(photoList, opts) {
+  opts = opts || {};
   const g = document.createElement('div');
   g.className = 'gallery' + (currentView === 'list' ? ' list-view' : '');
   photoList.forEach((photo, idx) => {
@@ -1369,7 +1443,16 @@ function buildGalleryEl(photoList) {
     img.alt = photo.location || 'Photo'; img.loading = 'lazy';
     inner.onclick = () => openLightbox(idx, photoList);
     const overlay = document.createElement('div'); overlay.className = 'item-overlay';
-    const badge = document.createElement('div'); badge.className = 'item-orient-badge'; badge.textContent = photo.orientation;
+    const badge = document.createElement('div');
+    if (opts.locationBadge) {
+      // Scatter mode: always-visible location tag in the top-right
+      badge.className = 'item-orient-badge always';
+      badge.textContent = photo.location || 'Unknown';
+    } else {
+      // Normal: hover-revealed orientation tag
+      badge.className = 'item-orient-badge';
+      badge.textContent = photo.orientation;
+    }
     inner.appendChild(img); inner.appendChild(overlay); inner.appendChild(badge);
     const caption = document.createElement('div');
     caption.className = 'item-caption';

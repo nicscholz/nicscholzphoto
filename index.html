@@ -1614,8 +1614,8 @@ function detectOrientation(img) {
 // ── IMAGE COMPRESSION (runs in the browser before upload) ──
 const FULL_MAX_DIMENSION = 2400;   // full-size longest edge (lightbox)
 const FULL_QUALITY = 0.82;         // full-size JPEG quality
-const THUMB_MAX_DIMENSION = 700;   // thumbnail longest edge (gallery grid)
-const THUMB_QUALITY = 0.7;         // thumbnail JPEG quality
+const THUMB_MAX_DIMENSION = 900;   // thumbnail longest edge (gallery grid)
+const THUMB_QUALITY = 0.8;         // thumbnail JPEG quality
 
 // Load a data URL into an Image once, so we can reuse it for both sizes
 function loadImage(dataUrl) {
